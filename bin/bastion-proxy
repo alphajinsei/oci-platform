@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""ssh の ProxyCommand から呼ぶ：bastion-proxy <bastion_id> <host> <port>
+
+対象の IP とポートへの Bastion のセッション（ポート転送）を用意し、そこを通して ssh をつなぐ。
+残りが十分あるセッションがあれば使い回し、なければ作って ACTIVE になるまで待つ（1分ほど）。
+標準出力は ssh の通信そのものなので、メッセージは標準エラーにだけ出す。
+"""
+import json
+import os
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+
+# Bastion のセッションは RSA の鍵しか受け付けない（ed25519 だとセッションは作れるが、接続で拒否される）。
+# VM へのログインは ssh_config の IdentityFile（ed25519）で、こちらは Bastion を通るためだけの鍵
+KEY = os.path.expanduser(os.environ.get("OCI_PLATFORM_BASTION_KEY", "~/.ssh/oci-platform-bastion"))
+TTL = 10800        # セッションの長さ（Bastion の上限の3時間）
+MIN_LEFT = 900     # 残りが15分を切ったセッションは使わない
+
+
+def log(msg):
+    print(f"bastion-proxy: {msg}", file=sys.stderr, flush=True)
+
+
+def oci(*args):
+    r = subprocess.run(["oci", *args], capture_output=True, text=True)
+    if r.returncode != 0:
+        log(f"oci {' '.join(args[:3])} failed:")
+        print(r.stderr.strip(), file=sys.stderr, flush=True)
+        sys.exit(1)
+    return json.loads(r.stdout) if r.stdout.strip() else {}
+
+
+def seconds_left(s):
+    created = datetime.fromisoformat(s["time-created"].replace("Z", "+00:00"))
+    return created.timestamp() + s["session-ttl-in-seconds"] - datetime.now(timezone.utc).timestamp()
+
+
+def find_session(bastion_id, host, port):
+    with open(KEY + ".pub") as f:
+        pubkey = f.read().split()[1]
+    sessions = oci("bastion", "session", "list", "--bastion-id", bastion_id,
+                   "--session-lifecycle-state", "ACTIVE", "--all").get("data", [])
+    for s in sessions:
+        t = s["target-resource-details"]
+        if (t.get("session-type") == "PORT_FORWARDING"
+                and t.get("target-resource-private-ip-address") == host
+                and int(t.get("target-resource-port", 0)) == port
+                and seconds_left(s) > MIN_LEFT):
+            # 別の鍵で作ったセッションは使えないので、登録された公開鍵を比べる
+            detail = oci("bastion", "session", "get", "--session-id", s["id"])["data"]
+            if pubkey in detail["key-details"]["public-key-content"]:
+                return s["id"]
+    return None
+
+
+def create_session(bastion_id, host, port):
+    log(f"creating a session to {host}:{port} (about 1 minute)")
+    s = oci("bastion", "session", "create-port-forwarding", "--bastion-id", bastion_id,
+            "--ssh-public-key-file", KEY + ".pub", "--target-private-ip", host,
+            "--target-port", str(port), "--session-ttl", str(TTL),
+            # 名前は英字で始める（数字で始まると InvalidParameter になる）
+            "--display-name", f"ssh-{host.replace('.', '-')}-{port}")["data"]
+    while True:
+        state = oci("bastion", "session", "get", "--session-id", s["id"])["data"]["lifecycle-state"]
+        if state == "ACTIVE":
+            time.sleep(5)  # ACTIVE になった直後は、鍵の反映が間に合わないことがある
+            return s["id"]
+        if state in ("FAILED", "DELETED"):
+            sys.exit(f"bastion-proxy: session {state}")
+        time.sleep(5)
+
+
+def main():
+    bastion_id, host, port = sys.argv[1], sys.argv[2], int(sys.argv[3])
+    region = bastion_id.split(".")[3]  # ocid1.bastion.oc1.<region>.xxx
+    session = find_session(bastion_id, host, port) or create_session(bastion_id, host, port)
+    os.execvp("ssh", ["ssh", "-i", KEY, "-o", "IdentitiesOnly=yes",
+                      "-o", "StrictHostKeyChecking=accept-new",
+                      "-o", "UserKnownHostsFile=" + os.path.expanduser("~/.ssh/known_hosts_oci-platform"),
+                      "-W", f"{host}:{port}", "-p", "22",
+                      f"{session}@host.bastion.{region}.oci.oraclecloud.com"])
+
+
+if __name__ == "__main__":
+    main()

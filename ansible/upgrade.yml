@@ -1,0 +1,22 @@
+# 手で流す更新：Docker 本体やカーネルも含めて全部更新し、再起動が要る VM だけ再起動する。
+# 1 台ずつ進める（serial: 1）。再起動の間、その VM のコンテナは 1〜2 分止まる
+- name: Upgrade packages and reboot if needed
+  hosts: all
+  become: true
+  serial: 1
+  tasks:
+    - name: Upgrade all packages
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        autoremove: true
+
+    - name: Check if a reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Reboot
+      ansible.builtin.reboot:
+        reboot_timeout: 600
+      when: reboot_required.stat.exists

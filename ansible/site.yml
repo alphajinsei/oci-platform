@@ -1,0 +1,27 @@
+# 全部の VM の中の設定（Ubuntu 24.04）。何度流しても同じ状態になる
+
+- name: Common settings
+  hosts: all
+  become: true
+  roles: [common]
+
+- name: Docker (app and ops)
+  hosts: app:ops
+  become: true
+  roles: [docker]
+
+- name: Swap (ops has only 1GB of memory)
+  hosts: ops
+  become: true
+  roles: [swap]
+
+# メールのデータは /srv/mail にまとめる（あとでブロックボリュームに移すときも、ここをマウントし直すだけ）
+- name: Mail data directory
+  hosts: mail
+  become: true
+  tasks:
+    - name: Create /srv/mail
+      ansible.builtin.file:
+        path: /srv/mail
+        state: directory
+        mode: "0755"

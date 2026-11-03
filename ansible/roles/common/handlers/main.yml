@@ -1,0 +1,6 @@
+# 読み直すと Docker が足したルールも消えるので、Docker が動いていれば再起動して足し直させる
+- name: Reload iptables
+  ansible.builtin.shell: |
+    netfilter-persistent reload
+    if systemctl is-active --quiet docker; then systemctl restart docker; fi
+  changed_when: true

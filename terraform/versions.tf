@@ -11,6 +11,10 @@ terraform {
       source  = "hashicorp/http"
       version = "~> 3.6"
     }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.9"
+    }
   }
 
   # state は OCI Object Storage（バケットは Step 0 で CLI から作った）

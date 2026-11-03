@@ -1,0 +1,2 @@
+# Postfix と Dovecot はコンテナではなく VM で直接動かすので、ここで開ける
+iptables_tcp_ports: [25, 465, 587, 993]

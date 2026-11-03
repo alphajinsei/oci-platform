@@ -98,7 +98,7 @@ resource "oci_core_route_table" "db" {
 # ---- セキュリティ・リスト ----
 
 # 通信の許可は NSG（nsg.tf）で行う。VCN の既定のセキュリティ・リストは、
-# 何もしないと SSH を 0.0.0.0/0 から許しているので、ICMP（経路の MTU の調整用）だけにする
+# 何もしないと SSH を 0.0.0.0/0 から許しているので、ICMP（経路の MTU の調整用）と Bastion の分だけにする
 resource "oci_core_default_security_list" "default" {
   manage_default_resource_id = oci_core_vcn.main.default_security_list_id
   display_name               = "default (rules are in NSGs)"
@@ -117,6 +117,17 @@ resource "oci_core_default_security_list" "default" {
     source   = local.vcn_cidr
     icmp_options {
       type = 3
+    }
+  }
+
+  # Bastion の窓口は private-app のサブネットに置かれ、NSG を持たない。
+  # そこから VM の 22 番へ出られるよう、ここで許す
+  egress_security_rules {
+    protocol    = "6"
+    destination = local.vcn_cidr
+    tcp_options {
+      min = 22
+      max = 22
     }
   }
 }

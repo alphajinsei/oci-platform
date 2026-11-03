@@ -19,3 +19,17 @@ output "nsg_ids" {
 output "app_ports" {
   value = local.app_ports
 }
+
+output "instances" {
+  value = {
+    for k, i in oci_core_instance.this : k => {
+      id         = i.id
+      private_ip = i.private_ip
+      public_ip  = i.public_ip
+    }
+  }
+}
+
+output "bastion_id" {
+  value = oci_bastion_bastion.main.id
+}

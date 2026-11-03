@@ -33,3 +33,20 @@ output "instances" {
 output "bastion_id" {
   value = oci_bastion_bastion.main.id
 }
+
+output "mysql" {
+  value = {
+    host    = "${oci_mysql_mysql_db_system.main.hostname_label}.${oci_core_subnet.this["db"].subnet_domain_name}"
+    ip      = oci_mysql_mysql_db_system.main.ip_address
+    port    = oci_mysql_mysql_db_system.main.port
+    version = oci_mysql_mysql_db_system.main.mysql_version
+  }
+}
+
+output "vault_id" {
+  value = oci_kms_vault.main.id
+}
+
+output "mysql_admin_secret_name" {
+  value = oci_vault_secret.mysql_admin_password.secret_name
+}

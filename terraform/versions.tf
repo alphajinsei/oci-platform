@@ -15,6 +15,10 @@ terraform {
       source  = "hashicorp/local"
       version = "~> 2.9"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.9"
+    }
   }
 
   # state は OCI Object Storage（バケットは Step 0 で CLI から作った）

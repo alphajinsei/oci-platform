@@ -1,0 +1,14 @@
+# LB の既定の行き先（どのアプリにも当たらないホスト名）。8000 番で小さなページを返す。
+# LB のヘルスチェックもここを見るので、これが動いていれば「LB → app VM → Docker」の経路が生きている
+- name: Copy default site files
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: /opt/platform/default-site/
+    mode: "0644"
+    directory_mode: "0755"
+  loop: [compose.yaml, html]
+
+- name: Start default site
+  community.docker.docker_compose_v2:
+    project_src: /opt/platform/default-site
+    state: present

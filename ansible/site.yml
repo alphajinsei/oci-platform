@@ -10,6 +10,11 @@
   become: true
   roles: [docker]
 
+- name: Default site for the LB (app)
+  hosts: app
+  become: true
+  roles: [default_site]
+
 - name: Swap and tools (ops has only 1GB of memory)
   hosts: ops
   become: true

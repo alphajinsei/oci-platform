@@ -50,3 +50,14 @@ output "vault_id" {
 output "mysql_admin_secret_name" {
   value = oci_vault_secret.mysql_admin_password.secret_name
 }
+
+# アプリ側の Terraform は、これを使ってホスト名付きのリスナーとバックエンド・セットを足す
+output "lb" {
+  value = {
+    id               = oci_load_balancer_load_balancer.main.id
+    public_ip        = local.lb_public_ip
+    certificate_name = oci_load_balancer_certificate.origin.certificate_name
+  }
+}
+
+# cloudflare_zone_id は cloudflare.tf

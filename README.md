@@ -20,7 +20,12 @@ terraform/
 ├── network.tf        VCN 10.0.0.0/16, 5 subnets, Internet / NAT / Service gateways, route tables
 ├── nsg.tf            nsg-lb / app / mail / ops / db and their rules
 ├── compute.tf        VMs (app, mail, ops), Bastion, ssh_config
-└── outputs.tf        IDs for later steps and for apps (terraform_remote_state)
+├── database.tf       MySQL HeatWave and the policy for its resource principal
+├── vault.tf          Vault, key, secrets, dynamic group and policy for VMs
+├── lb.tf             Flexible LB, Origin CA cert (read from .secrets), default listener (443)
+├── cloudflare.tf     the only file touching Cloudflare: DNS record for the check hostname
+├── outputs.tf        IDs for later steps and for apps (terraform_remote_state)
+└── tf.sh             loads the Cloudflare API token, then runs terraform
 ```
 
 | サブネット | CIDR | 置くもの | VM（ssh の名前、IP） |
@@ -36,12 +41,15 @@ terraform/
 認証は `~/.oci/config` の DEFAULT プロファイル（API キーは `~/claude-sandbox/infra/.secrets/oci/`）。
 
 ```bash
-cd terraform && terraform init && terraform apply     # OCI のリソース
+cd terraform && ./tf.sh init && ./tf.sh apply         # OCI のリソースと Cloudflare の DNS レコード
 ssh oci-app                                            # Bastion 経由（初回はセッション作成で1分ほど待つ）
 cd ../ansible && ansible-playbook site.yml             # VM の中
 ```
 
 - OS は Ubuntu 24.04。セキュリティの更新は毎日自動で入るが、再起動と Docker 本体の更新はしない（コンテナを止めないため）。月に1回などで `ansible-playbook upgrade.yml` を流す（全部更新し、再起動が要る VM だけ1台ずつ再起動する）。
+- `tf.sh` は Cloudflare の API トークン（`~/claude-sandbox/infra/.secrets/terraform-oci-dns.env`。権限は Zone Read と DNS Edit だけ）を読み込んでから terraform を実行する。OCI の認証は `~/.oci/config`。
+- Cloudflare で Terraform が触るのは DNS レコードだけ（`cloudflare.tf`）。暗号化モード（Full (strict)）、Always Use HTTPS、Origin 証明書は手で設定する。Origin 証明書（15年）はダッシュボードで発行し、`~/claude-sandbox/infra/.secrets/oci-platform-origin.pem` と `.key` に置く。
+- LB の既定の行き先は app の 8000 番（`ansible/roles/default_site` の小さなページ）。アプリのポートは 8001 から台帳で割り当てる。確認用のホスト名は `oci-platform.alphajinsei.com`。
 - SSH の鍵は2つ。VM へのログインは `~/.ssh/oci-platform`（ed25519）。Bastion のセッションは RSA の鍵しか受け付けないので、`~/.ssh/oci-platform-bastion`（RSA）を別に使う（`bin/bastion-proxy` が使う）。
 - `~/.ssh/config` の先頭に `Include ~/claude-sandbox/oci-platform/ssh_config` を書いておく。
 

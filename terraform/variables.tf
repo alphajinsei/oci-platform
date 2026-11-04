@@ -30,3 +30,21 @@ variable "ssh_private_key_path" {
   type        = string
   default     = "~/.ssh/oci-platform"
 }
+
+variable "domain" {
+  description = "Cloudflare で管理しているドメイン。アプリは <名前>.<domain> で公開する"
+  type        = string
+  default     = "alphajinsei.com"
+}
+
+variable "origin_cert_path" {
+  description = "Cloudflare の Origin 証明書（ダッシュボードで手で発行したもの、PEM）"
+  type        = string
+  default     = "~/claude-sandbox/infra/.secrets/oci-platform-origin.pem"
+}
+
+variable "origin_key_path" {
+  description = "上の証明書の秘密鍵（PEM）"
+  type        = string
+  default     = "~/claude-sandbox/infra/.secrets/oci-platform-origin.key"
+}

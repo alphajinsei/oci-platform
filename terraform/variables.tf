@@ -37,6 +37,11 @@ variable "domain" {
   default     = "alphajinsei.com"
 }
 
+variable "alert_email" {
+  description = "アラームの通知先（monitoring.tf）"
+  type        = string
+}
+
 variable "origin_cert_path" {
   description = "Cloudflare の Origin 証明書（ダッシュボードで手で発行したもの、PEM）"
   type        = string

@@ -32,6 +32,7 @@ terraform/
 ├── database.tf       MySQL HeatWave and the policy for its resource principal
 ├── vault.tf          Vault, key, secrets, dynamic group and policy for VMs
 ├── lb.tf             Flexible LB, Origin CA cert (read from .secrets), default listener (443)
+├── monitoring.tf     2 alarms (app down, VM down) -> email, LB access / error logs
 ├── cloudflare.tf     the only file touching Cloudflare: DNS record for the check hostname
 ├── outputs.tf        IDs for later steps and for apps (terraform_remote_state)
 └── tf.sh             loads the Cloudflare API token, then runs terraform
@@ -60,6 +61,8 @@ cd ../ansible && ansible-playbook site.yml             # VM の中
 - Cloudflare で Terraform が触るのは DNS レコードだけ（`cloudflare.tf`）。暗号化モード（Full (strict)）、Always Use HTTPS、Origin 証明書は手で設定する。Origin 証明書（15年）はダッシュボードで発行し、`~/claude-sandbox/infra/.secrets/oci-platform-origin.pem` と `.key` に置く。
 - LB の既定の行き先は app の 8000 番（`ansible/roles/default_site` の小さなページ）。アプリのポートは 8001 から台帳で割り当てる。確認用のホスト名は `oci-platform.alphajinsei.com`。
 - app と ops には oci CLI と `platform-secret <名前>`（共通基盤の Vault からシークレットを取り出す。VM 自身の権限で読むので鍵は要らない）が入っている。アプリは `/opt/apps/<名前>/` に置く（持ち主は ubuntu）。
+- 監視はアラーム2つだけ（`monitoring.tf`）：アプリが止まった（LB のバックエンド・セットに異常なバックエンドが3分続く）と、VM が止まった（CPU のメトリクスが10分届かない）。通知は `terraform.tfvars` の `alert_email` へ。アプリを足しても、アラームは足さなくてよい。新しいアプリを apply してからデプロイするまでの間も鳴る。
+- ログ：コンテナのログは app で `cd /opt/apps/<名前> && docker compose logs -f app`。LB のアクセスログとエラーログは OCI Logging のロググループ `platform`（`lb-access`、`lb-error`。30日）。
 - SSH の鍵は2つ。VM へのログインは `~/.ssh/oci-platform`（ed25519）。Bastion のセッションは RSA の鍵しか受け付けないので、`~/.ssh/oci-platform-bastion`（RSA）を別に使う（`bin/bastion-proxy` が使う）。
 - `~/.ssh/config` の先頭に `Include ~/claude-sandbox/oci-platform/ssh_config` を書いておく。
 

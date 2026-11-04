@@ -1,21 +1,5 @@
-# ops は DB の管理作業とバッチの置き場。mysql のクライアントと oci CLI を入れる
-- name: Install mysql client and pipx
+# ops は DB の管理作業とバッチの置き場。mysql のクライアントを入れる（oci CLI は oci_cli）
+- name: Install mysql client
   ansible.builtin.apt:
-    name: [mysql-client, pipx]
+    name: mysql-client
     state: present
-
-# oci CLI はインスタンス・プリンシパル（--auth instance_principal）で使う。鍵は置かない。
-# community.general.pipx は pipx 1.7 以上が要るが、Ubuntu 24.04 の pipx は 1.4。コマンドで直接入れる
-- name: Install oci CLI for ubuntu
-  ansible.builtin.command: pipx install oci-cli
-  args:
-    creates: /home/ubuntu/.local/bin/oci
-  become: true
-  become_user: ubuntu
-
-- name: Put pipx's bin on PATH
-  ansible.builtin.command: pipx ensurepath
-  become: true
-  become_user: ubuntu
-  register: ensurepath
-  changed_when: "'added' in ensurepath.stdout"

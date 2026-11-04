@@ -1,3 +1,6 @@
 # VM の中の iptables で開ける TCP ポート（22 は OCI のイメージが最初から開けている）。
 # Docker で公開するポート（app の 8000-8099）は、Docker が自分で iptables に足すので書かない
 iptables_tcp_ports: []
+
+# 共通基盤の Vault（oci_cli の platform-secret が使う）。Terraform の出力から読む
+platform_vault_id: "{{ lookup('ansible.builtin.pipe', 'terraform -chdir=' ~ playbook_dir ~ '/../terraform output -raw vault_id') }}"

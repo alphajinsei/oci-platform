@@ -5,7 +5,16 @@ OCI Always Free の上に作る、個人サービス用の共通基盤（方式�
 - なぜこの構成か：[方式検討：OCI](https://github.com/alphajinsei/cf-infra-playbook/blob/main/docs/design/oci.md)
 - 作る手順と進み具合：[学習ロードマップ：OCI](https://github.com/alphajinsei/cf-infra-playbook/blob/main/docs/roadmaps/oci.md)
 
-アプリが受け取るもの・守ること（共通基盤の仕様）と、ポートの台帳は、Step 9 でここに書く。
+アプリが受け取るもの・守ること（共通基盤の仕様）は、Step 9 でここに書く。
+
+### ポートの台帳
+
+app VM の上で、アプリのコンテナが使うポート（VM の側）。LB の NSG は 8000〜8099 をまとめて開けている。アプリを足すときは、ここに1行足してから使う。
+
+| ポート | 使うもの |
+| --- | --- |
+| 8000 | 共通基盤の既定のページ（`ansible/roles/default_site`） |
+| 8001 | [sample-oci-vm-docker](https://github.com/alphajinsei/sample-oci-vm-docker) |
 
 ## 構成
 
@@ -50,6 +59,7 @@ cd ../ansible && ansible-playbook site.yml             # VM の中
 - `tf.sh` は Cloudflare の API トークン（`~/claude-sandbox/infra/.secrets/terraform-oci-dns.env`。権限は Zone Read と DNS Edit だけ）を読み込んでから terraform を実行する。OCI の認証は `~/.oci/config`。
 - Cloudflare で Terraform が触るのは DNS レコードだけ（`cloudflare.tf`）。暗号化モード（Full (strict)）、Always Use HTTPS、Origin 証明書は手で設定する。Origin 証明書（15年）はダッシュボードで発行し、`~/claude-sandbox/infra/.secrets/oci-platform-origin.pem` と `.key` に置く。
 - LB の既定の行き先は app の 8000 番（`ansible/roles/default_site` の小さなページ）。アプリのポートは 8001 から台帳で割り当てる。確認用のホスト名は `oci-platform.alphajinsei.com`。
+- app と ops には oci CLI と `platform-secret <名前>`（共通基盤の Vault からシークレットを取り出す。VM 自身の権限で読むので鍵は要らない）が入っている。アプリは `/opt/apps/<名前>/` に置く（持ち主は ubuntu）。
 - SSH の鍵は2つ。VM へのログインは `~/.ssh/oci-platform`（ed25519）。Bastion のセッションは RSA の鍵しか受け付けないので、`~/.ssh/oci-platform-bastion`（RSA）を別に使う（`bin/bastion-proxy` が使う）。
 - `~/.ssh/config` の先頭に `Include ~/claude-sandbox/oci-platform/ssh_config` を書いておく。
 

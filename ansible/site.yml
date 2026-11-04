@@ -10,10 +10,29 @@
   become: true
   roles: [docker]
 
+# oci CLI と platform-secret（Vault からシークレットを取り出す）。app はデプロイのとき、ops は DB の管理作業で使う
+- name: oci CLI (app and ops)
+  hosts: app:ops
+  become: true
+  roles: [oci_cli]
+
 - name: Default site for the LB (app)
   hosts: app
   become: true
   roles: [default_site]
+
+# アプリの置き場。デプロイのスクリプトが ubuntu で rsync するので、持ち主を ubuntu にする
+- name: App directory (app)
+  hosts: app
+  become: true
+  tasks:
+    - name: Create /opt/apps
+      ansible.builtin.file:
+        path: /opt/apps
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: "0755"
 
 - name: Swap and tools (ops has only 1GB of memory)
   hosts: ops

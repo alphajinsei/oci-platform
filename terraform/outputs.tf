@@ -47,6 +47,11 @@ output "vault_id" {
   value = oci_kms_vault.main.id
 }
 
+# アプリ側の Terraform が、自分のシークレット（DB のパスワードなど）を同じ Vault に入れるのに使う
+output "vault_key_id" {
+  value = oci_kms_key.main.id
+}
+
 output "mysql_admin_secret_name" {
   value = oci_vault_secret.mysql_admin_password.secret_name
 }

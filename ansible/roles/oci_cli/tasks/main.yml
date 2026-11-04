@@ -1,0 +1,33 @@
+# oci CLI はインスタンス・プリンシパル（--auth instance_principal）で使う。鍵は置かない。
+# community.general.pipx は pipx 1.7 以上が要るが、Ubuntu 24.04 の pipx は 1.4。コマンドで直接入れる
+- name: Install pipx
+  ansible.builtin.apt:
+    name: pipx
+    state: present
+
+- name: Install oci CLI for ubuntu
+  ansible.builtin.command: pipx install oci-cli
+  args:
+    creates: /home/ubuntu/.local/bin/oci
+  become: true
+  become_user: ubuntu
+
+- name: Put pipx's bin on PATH
+  ansible.builtin.command: pipx ensurepath
+  become: true
+  become_user: ubuntu
+  register: ensurepath
+  changed_when: "'added' in ensurepath.stdout"
+
+# Vault の OCID（シークレットを名前で引くのに使う）。値は Terraform の出力から
+- name: Write platform settings
+  ansible.builtin.copy:
+    content: "VAULT_ID={{ platform_vault_id }}\n"
+    dest: /etc/oci-platform.env
+    mode: "0644"
+
+- name: Install platform-secret
+  ansible.builtin.template:
+    src: platform-secret.j2
+    dest: /usr/local/bin/platform-secret
+    mode: "0755"

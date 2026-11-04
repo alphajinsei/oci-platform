@@ -22,6 +22,8 @@ locals {
       { nsg = "app", direction = "EGRESS", peer_type = "CIDR_BLOCK", peer = "0.0.0.0/0", ports = null, desc = "all outbound" },
 
       { nsg = "mail", direction = "INGRESS", peer_type = "CIDR_BLOCK", peer = "0.0.0.0/0", ports = { min = 25, max = 25 }, desc = "SMTP" },
+      # Let's Encrypt の HTTP-01 の確認。certbot が取得と更新のときだけ待ち受ける（ふだんは何も聞いていない）
+      { nsg = "mail", direction = "INGRESS", peer_type = "CIDR_BLOCK", peer = "0.0.0.0/0", ports = { min = 80, max = 80 }, desc = "ACME HTTP-01 (certbot)" },
       { nsg = "mail", direction = "INGRESS", peer_type = "CIDR_BLOCK", peer = "0.0.0.0/0", ports = { min = 465, max = 465 }, desc = "SMTPS (submission)" },
       { nsg = "mail", direction = "INGRESS", peer_type = "CIDR_BLOCK", peer = "0.0.0.0/0", ports = { min = 587, max = 587 }, desc = "submission" },
       { nsg = "mail", direction = "INGRESS", peer_type = "CIDR_BLOCK", peer = "0.0.0.0/0", ports = { min = 993, max = 993 }, desc = "IMAPS" },

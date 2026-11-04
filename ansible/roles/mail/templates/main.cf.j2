@@ -12,13 +12,12 @@ inet_protocols = ipv4
 
 # ---- 受け取る宛先（virtual：メールのユーザーを Linux のユーザーにしない） ----
 virtual_mailbox_domains = {{ mail_domain }}
-virtual_mailbox_base = /srv/mail
-# 宛先 -> 保存先（virtual_mailbox_base からの相対パス。末尾の / は Maildir の意味）。ここにない宛先は 550 で拒否する
+# 受け取ってよい宛先の一覧。ここにない宛先は 550 で拒否する（右側の値は使わない。保存先は Dovecot が決める）
 virtual_mailbox_maps = hash:/etc/postfix/vmailbox
-# 別名 -> 本当の宛先（postmaster@ など）
+# 別名 -> 本当の宛先（postmaster@ など）。Dovecot に渡す前に Postfix が置き換える
 virtual_alias_maps = hash:/etc/postfix/virtual
-virtual_uid_maps = static:5000
-virtual_gid_maps = static:5000
+# 保存は Dovecot に任せる（LMTP。Dovecot が Maildir に書き、索引も更新する）
+virtual_transport = lmtp:unix:private/dovecot-lmtp
 
 # ---- 中継の制限（オープンリレーにしない） ----
 # 信頼するのは自分自身だけ。それ以外から、よそのドメイン宛てを頼まれたら拒否する（Relay access denied）
@@ -32,10 +31,9 @@ smtpd_banner = $myhostname ESMTP
 message_size_limit = 26214400
 
 # ---- TLS（受ける側。相手が対応していれば使う） ----
-# 8-2 では Ubuntu の自己署名の証明書（snakeoil）。8-3 で Let's Encrypt に替える。
-# サーバー同士の配送では、送る側は証明書を検証しないのが普通なので、自己署名でも暗号化はされる
-smtpd_tls_cert_file = /etc/ssl/certs/ssl-cert-snakeoil.pem
-smtpd_tls_key_file = /etc/ssl/private/ssl-cert-snakeoil.key
+# 証明書は Let's Encrypt（certbot が更新し、deploy フックで読み直す）。Dovecot と同じもの
+smtpd_tls_cert_file = /etc/letsencrypt/live/{{ mail_hostname }}/fullchain.pem
+smtpd_tls_key_file = /etc/letsencrypt/live/{{ mail_hostname }}/privkey.pem
 smtpd_tls_security_level = may
 smtpd_tls_loglevel = 1
 smtpd_tls_received_header = yes

@@ -1,5 +1,5 @@
-# メールサーバー（mail VM）。8-2 では Postfix で受けて、Maildir に保存するところまで。
-# 閲覧（Dovecot）は 8-3、送信（Email Delivery への中継）は 8-4 で足す
+# メールサーバー（mail VM）。Postfix が 25番で受け、Dovecot に LMTP で渡して Maildir に保存する。
+# メールソフトは Dovecot の IMAP（993番）で読む。送信（Email Delivery への中継）は 8-4 で足す
 
 # メールボックスの持ち主。メールのユーザーは Linux のユーザーにしない（virtual）ので、全員分をこの1人が持つ。
 # Postfix の virtual_uid_maps / virtual_gid_maps と同じ番号にする（グループを先に作らないと、別の番号になる）
@@ -28,6 +28,31 @@
     group: vmail
     mode: "0700"
 
+# ---- 証明書：Let's Encrypt（ACME の HTTP-01）。Postfix と Dovecot が同じものを使う ----
+# certbot が 80番で一時的に待ち受け、Let's Encrypt からの確認（http://<名前>/.well-known/acme-challenge/...）に答える。
+# 更新は certbot のパッケージが入れる systemd のタイマー（1日2回、期限の30日前から更新）。更新したら deploy フックで読み直す
+- name: Install certbot
+  ansible.builtin.apt:
+    name: certbot
+    state: present
+
+- name: Get certificate
+  ansible.builtin.command: >-
+    certbot certonly --standalone --non-interactive --agree-tos
+    --email {{ mail_acme_email }} -d {{ mail_hostname }}
+  args:
+    creates: "/etc/letsencrypt/live/{{ mail_hostname }}/fullchain.pem"
+
+- name: Reload mail services after renewal
+  ansible.builtin.copy:
+    content: |
+      #!/bin/sh
+      # Managed by Ansible (roles/mail). certbot runs this after a certificate is renewed.
+      systemctl reload postfix dovecot
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-mail.sh
+    mode: "0755"
+
+# ---- Postfix ----
 # インストールのときの質問（どんな種類のメールサーバーか）に先に答えておく。main.cf は下で丸ごと書き換える
 - name: Preseed postfix
   ansible.builtin.debconf:
@@ -63,5 +88,48 @@
 - name: Start postfix
   ansible.builtin.service:
     name: postfix
+    state: started
+    enabled: true
+
+# ---- Dovecot：IMAP（993番）、LMTP での保存、パスワードの確認 ----
+- name: Install dovecot
+  ansible.builtin.apt:
+    name: [dovecot-core, dovecot-imapd, dovecot-lmtpd]
+    state: present
+
+# パッケージの設定（conf.d/ を読み込む形）は使わず、1つのファイルに全部書く。Linux のユーザーでのログイン（PAM）も切れる
+- name: Write dovecot.conf
+  ansible.builtin.template:
+    src: dovecot.conf.j2
+    dest: /etc/dovecot/dovecot.conf
+    mode: "0644"
+  notify: Restart dovecot
+
+# パスワードは Vault から読み、ハッシュ（SHA512-CRYPT）にして置く。平文はファイルにも Ansible の出力にも残さない。
+# ソルトをユーザーごとに固定して、何度流してもファイルが変わらないようにする
+- name: Hash mail passwords from Vault
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    platform-secret mail-{{ item }}-password
+    | openssl passwd -6 -salt {{ ((item ~ '@' ~ mail_domain) | hash('sha256'))[:16] }} -stdin
+  args:
+    executable: /bin/bash
+  loop: "{{ mail_users }}"
+  register: mail_password_hashes
+  changed_when: false
+  no_log: true
+
+- name: Write dovecot users
+  ansible.builtin.template:
+    src: dovecot-users.j2
+    dest: /etc/dovecot/users
+    owner: root
+    group: dovecot
+    mode: "0640"
+  no_log: true
+
+- name: Start dovecot
+  ansible.builtin.service:
+    name: dovecot
     state: started
     enabled: true

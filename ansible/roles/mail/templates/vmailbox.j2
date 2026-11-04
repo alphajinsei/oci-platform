@@ -1,4 +1,4 @@
-# Managed by Ansible. <address> <path under /srv/mail>/  (trailing / = Maildir)
+# Managed by Ansible. Addresses Postfix accepts (the right side is not used; Dovecot decides where to store)
 {% for u in mail_users %}
-{{ u }}@{{ mail_domain }} {{ mail_domain }}/{{ u }}/Maildir/
+{{ u }}@{{ mail_domain }} OK
 {% endfor %}

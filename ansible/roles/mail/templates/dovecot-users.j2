@@ -1,0 +1,4 @@
+# Managed by Ansible (roles/mail). <user>:<password hash>. Passwords come from Vault (mail-<user>-password)
+{% for r in mail_password_hashes.results %}
+{{ r.item }}@{{ mail_domain }}:{SHA512-CRYPT}{{ r.stdout }}
+{% endfor %}

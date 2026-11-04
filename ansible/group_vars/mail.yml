@@ -1,2 +1,13 @@
 # Postfix と Dovecot はコンテナではなく VM で直接動かすので、ここで開ける
 iptables_tcp_ports: [25, 465, 587, 993]
+
+# メール（roles/mail）
+mail_domain: alphajinsei.com
+mail_hostname: mail.alphajinsei.com
+# メールボックスを持つユーザー（@ の前）
+mail_users: [alphajinsei]
+# 別名 -> ユーザー。postmaster は RFC で必須。dmarc は DMARC のレポートの受け口（8-4）
+mail_aliases:
+  postmaster: alphajinsei
+  abuse: alphajinsei
+  dmarc: alphajinsei

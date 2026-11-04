@@ -39,13 +39,7 @@
   become: true
   roles: [swap, ops_tools]
 
-# メールのデータは /srv/mail にまとめる（あとでブロックボリュームに移すときも、ここをマウントし直すだけ）
-- name: Mail data directory
+- name: Mail server (mail)
   hosts: mail
   become: true
-  tasks:
-    - name: Create /srv/mail
-      ansible.builtin.file:
-        path: /srv/mail
-        state: directory
-        mode: "0755"
+  roles: [mail]

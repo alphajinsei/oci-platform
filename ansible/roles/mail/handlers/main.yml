@@ -1,0 +1,11 @@
+- name: Postmap and reload postfix
+  ansible.builtin.shell: |
+    postmap /etc/postfix/vmailbox
+    postmap /etc/postfix/virtual
+  changed_when: true
+  notify: Reload postfix
+
+- name: Reload postfix
+  ansible.builtin.service:
+    name: postfix
+    state: reloaded

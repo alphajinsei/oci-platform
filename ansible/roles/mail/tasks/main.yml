@@ -1,0 +1,67 @@
+# メールサーバー（mail VM）。8-2 では Postfix で受けて、Maildir に保存するところまで。
+# 閲覧（Dovecot）は 8-3、送信（Email Delivery への中継）は 8-4 で足す
+
+# メールボックスの持ち主。メールのユーザーは Linux のユーザーにしない（virtual）ので、全員分をこの1人が持つ。
+# Postfix の virtual_uid_maps / virtual_gid_maps と同じ番号にする（グループを先に作らないと、別の番号になる）
+- name: Create vmail group
+  ansible.builtin.group:
+    name: vmail
+    gid: 5000
+    system: true
+
+- name: Create vmail user
+  ansible.builtin.user:
+    name: vmail
+    uid: 5000
+    group: vmail
+    system: true
+    home: /srv/mail
+    create_home: false
+    shell: /usr/sbin/nologin
+
+# メールのデータは /srv/mail にまとめる（あとでブロックボリュームに移すときも、ここをマウントし直すだけ）
+- name: Create /srv/mail
+  ansible.builtin.file:
+    path: /srv/mail
+    state: directory
+    owner: vmail
+    group: vmail
+    mode: "0700"
+
+# インストールのときの質問（どんな種類のメールサーバーか）に先に答えておく。main.cf は下で丸ごと書き換える
+- name: Preseed postfix
+  ansible.builtin.debconf:
+    name: postfix
+    question: "{{ item.q }}"
+    value: "{{ item.v }}"
+    vtype: "{{ item.t }}"
+  loop:
+    - { q: postfix/main_mailer_type, v: "Internet Site", t: select }
+    - { q: postfix/mailname, v: "{{ mail_hostname }}", t: string }
+
+- name: Install postfix
+  ansible.builtin.apt:
+    name: [postfix]
+    state: present
+
+- name: Write main.cf
+  ansible.builtin.template:
+    src: main.cf.j2
+    dest: /etc/postfix/main.cf
+    mode: "0644"
+  notify: Reload postfix
+
+# 宛先の一覧（virtual_mailbox_maps）と別名（virtual_alias_maps）。postmap で Postfix が引ける形（.db）にする
+- name: Write mailbox and alias maps
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/postfix/{{ item }}"
+    mode: "0644"
+  loop: [vmailbox, virtual]
+  notify: Postmap and reload postfix
+
+- name: Start postfix
+  ansible.builtin.service:
+    name: postfix
+    state: started
+    enabled: true

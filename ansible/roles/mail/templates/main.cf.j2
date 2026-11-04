@@ -1,0 +1,49 @@
+# Managed by Ansible (oci-platform/ansible/roles/mail). Edit the template, not this file.
+# 設定の一覧と既定値は `postconf -d`、今効いている値は `postconf -n`
+
+# ---- 自分の名前 ----
+myhostname = {{ mail_hostname }}
+mydomain = {{ mail_domain }}
+myorigin = $mydomain
+# Linux のユーザー宛て（root など）として受けるのは localhost だけ。alphajinsei.com は下の virtual で受ける
+mydestination = localhost
+inet_interfaces = all
+inet_protocols = ipv4
+
+# ---- 受け取る宛先（virtual：メールのユーザーを Linux のユーザーにしない） ----
+virtual_mailbox_domains = {{ mail_domain }}
+virtual_mailbox_base = /srv/mail
+# 宛先 -> 保存先（virtual_mailbox_base からの相対パス。末尾の / は Maildir の意味）。ここにない宛先は 550 で拒否する
+virtual_mailbox_maps = hash:/etc/postfix/vmailbox
+# 別名 -> 本当の宛先（postmaster@ など）
+virtual_alias_maps = hash:/etc/postfix/virtual
+virtual_uid_maps = static:5000
+virtual_gid_maps = static:5000
+
+# ---- 中継の制限（オープンリレーにしない） ----
+# 信頼するのは自分自身だけ。それ以外から、よそのドメイン宛てを頼まれたら拒否する（Relay access denied）
+mynetworks = 127.0.0.0/8
+smtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination
+
+# ---- 受け付けの作法 ----
+smtpd_helo_required = yes
+disable_vrfy_command = yes
+smtpd_banner = $myhostname ESMTP
+message_size_limit = 26214400
+
+# ---- TLS（受ける側。相手が対応していれば使う） ----
+# 8-2 では Ubuntu の自己署名の証明書（snakeoil）。8-3 で Let's Encrypt に替える。
+# サーバー同士の配送では、送る側は証明書を検証しないのが普通なので、自己署名でも暗号化はされる
+smtpd_tls_cert_file = /etc/ssl/certs/ssl-cert-snakeoil.pem
+smtpd_tls_key_file = /etc/ssl/private/ssl-cert-snakeoil.key
+smtpd_tls_security_level = may
+smtpd_tls_loglevel = 1
+smtpd_tls_received_header = yes
+
+# ---- 送る側 ----
+# 外への 25番は OCI が塞いでいるので、今は外へ送れない（返信やエラーのメールはキューに残る）。8-4 で Email Delivery に中継する
+smtp_tls_security_level = may
+
+compatibility_level = 3.6
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases

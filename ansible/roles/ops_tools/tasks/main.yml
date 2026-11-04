@@ -1,5 +1,5 @@
-# ops は DB の管理作業とバッチの置き場。mysql のクライアントを入れる（oci CLI は oci_cli）
-- name: Install mysql client
+# ops は DB の管理作業とバッチの置き場。mysql のクライアントと、SMTP を手で試す swaks を入れる（oci CLI は oci_cli）
+- name: Install tools
   ansible.builtin.apt:
-    name: mysql-client
+    name: [mysql-client, swaks]
     state: present

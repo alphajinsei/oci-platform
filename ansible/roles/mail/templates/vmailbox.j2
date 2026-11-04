@@ -1,0 +1,4 @@
+# Managed by Ansible. <address> <path under /srv/mail>/  (trailing / = Maildir)
+{% for u in mail_users %}
+{{ u }}@{{ mail_domain }} {{ mail_domain }}/{{ u }}/Maildir/
+{% endfor %}

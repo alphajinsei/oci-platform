@@ -1,6 +1,8 @@
-# 読み直すと Docker が足したルールも消えるので、Docker が動いていれば再起動して足し直させる
+# OCI のイメージは netfilter-persistent を NOFLUSH（今のルールを消さずに後ろに足す）にしているので、
+# reload では古い REJECT が先に残って、足したポートが効かない。フラッシュしてから読み直す。
+# Docker が足したルールも消えるので、Docker が動いていれば再起動して足し直させる
 - name: Reload iptables
   ansible.builtin.shell: |
-    netfilter-persistent reload
+    iptables-restore < /etc/iptables/rules.v4
     if systemctl is-active --quiet docker; then systemctl restart docker; fi
   changed_when: true

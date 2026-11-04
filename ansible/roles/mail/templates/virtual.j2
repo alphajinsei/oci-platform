@@ -1,0 +1,4 @@
+# Managed by Ansible. <alias> <real address>
+{% for a, to in mail_aliases.items() %}
+{{ a }}@{{ mail_domain }} {{ to }}@{{ mail_domain }}
+{% endfor %}

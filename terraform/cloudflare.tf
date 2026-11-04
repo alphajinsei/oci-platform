@@ -1,5 +1,5 @@
 # ---- Cloudflare（OCI の外）：このリポジトリが Cloudflare で触るのは、このファイルだけ ----
-# 触るのは DNS レコードだけ。暗号化モード（Full (strict)）や Origin 証明書など、
+# 触るのは DNS レコードだけ（確認用のホスト名と、メールの A・MX）。暗号化モード（Full (strict)）や Origin 証明書など、
 # ゾーンとアカウントの設定は手で行う（ロードマップの Step 5）
 
 provider "cloudflare" {
@@ -27,4 +27,28 @@ resource "cloudflare_dns_record" "platform_check" {
 # アプリ側の Terraform は、これを使って自分の DNS レコードを足す
 output "cloudflare_zone_id" {
   value = data.cloudflare_zone.main.zone_id
+}
+
+# ---- メール（mail VM）。Cloudflare は SMTP や IMAP を通さないので、プロキシしない ----
+
+# MX の向け先、メールソフトの接続先。IP は予約していないので、VM を作り直したら apply で追いつく
+resource "cloudflare_dns_record" "mail" {
+  zone_id = data.cloudflare_zone.main.zone_id
+  name    = "mail.${var.domain}"
+  type    = "A"
+  content = oci_core_instance.this["mail"].public_ip
+  proxied = false
+  ttl     = 300
+  comment = "managed by Terraform: oci-platform"
+}
+
+# alphajinsei.com 宛てのメールは mail.alphajinsei.com へ
+resource "cloudflare_dns_record" "mx" {
+  zone_id  = data.cloudflare_zone.main.zone_id
+  name     = var.domain
+  type     = "MX"
+  content  = cloudflare_dns_record.mail.name
+  priority = 10
+  ttl      = 300
+  comment  = "managed by Terraform: oci-platform"
 }

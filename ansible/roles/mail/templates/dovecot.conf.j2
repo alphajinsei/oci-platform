@@ -69,6 +69,15 @@ service lmtp {
   }
 }
 
+# Postfix の 465・587番のログインの確認を受ける口（SASL）
+service auth {
+  unix_listener /var/spool/postfix/private/auth {
+    mode = 0660
+    user = postfix
+    group = postfix
+  }
+}
+
 protocol lmtp {
   postmaster_address = postmaster@{{ mail_domain }}
 }

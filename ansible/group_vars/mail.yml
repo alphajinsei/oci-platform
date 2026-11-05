@@ -14,3 +14,6 @@ mail_aliases:
   postmaster: alphajinsei
   abuse: alphajinsei
   dmarc: alphajinsei
+
+# 外への配送の中継先（Email Delivery）。ホスト名と SMTP のユーザー名は Terraform の出力から、パスワードは Vault から
+mail_relay: "{{ lookup('ansible.builtin.pipe', 'terraform -chdir=' ~ playbook_dir ~ '/../terraform output -json mail_relay') | from_json }}"

@@ -2,6 +2,9 @@
   ansible.builtin.shell: |
     postmap /etc/postfix/vmailbox
     postmap /etc/postfix/virtual
+    postmap /etc/postfix/sender_login
+    postmap /etc/postfix/sasl_passwd
+    chmod 0600 /etc/postfix/sasl_passwd.db
   changed_when: true
   notify: Reload postfix
 
@@ -13,4 +16,9 @@
 - name: Restart dovecot
   ansible.builtin.service:
     name: dovecot
+    state: restarted
+
+- name: Restart postfix
+  ansible.builtin.service:
+    name: postfix
     state: restarted

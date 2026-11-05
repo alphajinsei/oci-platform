@@ -38,9 +38,22 @@ smtpd_tls_security_level = may
 smtpd_tls_loglevel = 1
 smtpd_tls_received_header = yes
 
-# ---- 送る側 ----
-# 外への 25番は OCI が塞いでいるので、今は外へ送れない（返信やエラーのメールはキューに残る）。8-4 で Email Delivery に中継する
-smtp_tls_security_level = may
+# ---- 送信の受付（465・587番。master.cf で、この2つのポートだけログインを有効にする） ----
+# ログインの確認は Dovecot に任せる（同じユーザーとパスワード）
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth
+# ログインしたユーザーが、封筒の差出人として名乗ってよいアドレス（他人を名乗らせない）
+smtpd_sender_login_maps = hash:/etc/postfix/sender_login
+
+# ---- 送る側：外への配送は全部 Email Delivery に中継する（外への 25番は OCI が塞いでいる） ----
+relayhost = [{{ mail_relay.host }}]:{{ mail_relay.port }}
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+smtp_sasl_tls_security_options = noanonymous
+# 中継先には必ず TLS で、証明書も確かめてからパスワードを渡す
+smtp_tls_security_level = secure
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
 
 compatibility_level = 3.6
 alias_maps = hash:/etc/aliases

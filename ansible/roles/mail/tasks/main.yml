@@ -1,5 +1,6 @@
 # メールサーバー（mail VM）。Postfix が 25番で受け、Dovecot に LMTP で渡して Maildir に保存する。
-# メールソフトは Dovecot の IMAP（993番）で読む。送信（Email Delivery への中継）は 8-4 で足す
+# メールソフトは Dovecot の IMAP（993番）で読み、465・587番で送る（ログインは Dovecot が確かめる）。
+# 外への配送は全部 Email Delivery に中継する
 
 # メールボックスの持ち主。メールのユーザーは Linux のユーザーにしない（virtual）ので、全員分をこの1人が持つ。
 # Postfix の virtual_uid_maps / virtual_gid_maps と同じ番号にする（グループを先に作らないと、別の番号になる）
@@ -76,13 +77,36 @@
     mode: "0644"
   notify: Reload postfix
 
-# 宛先の一覧（virtual_mailbox_maps）と別名（virtual_alias_maps）。postmap で Postfix が引ける形（.db）にする
-- name: Write mailbox and alias maps
+- name: Write master.cf
+  ansible.builtin.template:
+    src: master.cf.j2
+    dest: /etc/postfix/master.cf
+    mode: "0644"
+  notify: Restart postfix
+
+# 宛先の一覧（virtual_mailbox_maps）、別名（virtual_alias_maps）、名乗ってよい差出人（smtpd_sender_login_maps）。
+# postmap で Postfix が引ける形（.db）にする
+- name: Write mailbox, alias and sender maps
   ansible.builtin.template:
     src: "{{ item }}.j2"
     dest: "/etc/postfix/{{ item }}"
     mode: "0644"
-  loop: [vmailbox, virtual]
+  loop: [vmailbox, virtual, sender_login]
+  notify: Postmap and reload postfix
+
+# 中継先（Email Delivery）のパスワード。Vault から読み、root だけが読めるファイルにする
+- name: Read relay password from Vault
+  ansible.builtin.command: platform-secret {{ mail_relay.password_name }}
+  register: mail_relay_password
+  changed_when: false
+  no_log: true
+
+- name: Write relay credentials
+  ansible.builtin.template:
+    src: sasl_passwd.j2
+    dest: /etc/postfix/sasl_passwd
+    mode: "0600"
+  no_log: true
   notify: Postmap and reload postfix
 
 - name: Start postfix

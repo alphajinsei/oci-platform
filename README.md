@@ -31,7 +31,7 @@ terraform/
 ├── compute.tf        VMs (app, mail, ops), Bastion, ssh_config
 ├── database.tf       MySQL HeatWave and the policy for its resource principal
 ├── vault.tf          Vault, key, secrets, dynamic group and policy for VMs
-├── mail.tf           mail passwords (Vault); the rest of mail is in cloudflare.tf, nsg.tf and ansible/roles/mail
+├── mail.tf           mail passwords (Vault), Email Delivery (domain, DKIM, return path, senders), relay IAM user + SMTP credential
 ├── lb.tf             Flexible LB, Origin CA cert (read from .secrets), default listener (443)
 ├── monitoring.tf     2 alarms (app down, VM down) -> email, LB access / error logs
 ├── cloudflare.tf     the only file touching Cloudflare: DNS records (check hostname, mail A and MX)

@@ -1,0 +1,7 @@
+# Managed by Ansible. <envelope sender> <login names allowed to use it>
+{% for u in mail_users %}
+{{ u }}@{{ mail_domain }} {{ u }}@{{ mail_domain }}
+{% endfor %}
+{% for a, to in mail_aliases.items() %}
+{{ a }}@{{ mail_domain }} {{ to }}@{{ mail_domain }}
+{% endfor %}

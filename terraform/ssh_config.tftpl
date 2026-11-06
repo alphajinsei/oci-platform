@@ -13,3 +13,7 @@ Host ${join(" ", keys(hosts))}
   StrictHostKeyChecking accept-new
   UserKnownHostsFile ~/.ssh/known_hosts_oci-platform
   ProxyCommand ${proxy} ${bastion_id} %h %p
+  # 何も打たないと数分で Bastion に切られるので、60秒ごとに keepalive を送る。
+  # 3回続けて応答がなければ切る（固まったまま待たされない）
+  ServerAliveInterval 60
+  ServerAliveCountMax 3

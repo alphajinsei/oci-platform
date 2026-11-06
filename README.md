@@ -2,10 +2,37 @@
 
 OCI Always Free の上に作る、個人サービス用の共通基盤（方式③）。Cloudflare → Flexible LB → Docker ホスト → MySQL HeatWave の3層と、メールなど VM 単体のサービスの置き場を持つ。
 
+- 方式③でサービスを作るときの「基盤の資料」を兼ねる（仕様・道具の分担・運用・困ったとき）。どの方式でも共通の決まりごとは [サービス開発ガイド](https://github.com/alphajinsei/cf-infra-playbook/blob/main/docs/service-guide.md)、作り方はサンプル [sample-oci-vm-docker](https://github.com/alphajinsei/sample-oci-vm-docker) の README
 - なぜこの構成か：[方式検討：OCI](https://github.com/alphajinsei/cf-infra-playbook/blob/main/docs/design/oci.md)
 - 作る手順と進み具合：[学習ロードマップ：OCI](https://github.com/alphajinsei/cf-infra-playbook/blob/main/docs/roadmaps/oci.md)
 
-アプリが受け取るもの・守ること（共通基盤の仕様）は、Step 9 でここに書く。
+## 仕様（アプリから見た共通基盤）
+
+アプリを作るときに読むのはこの節だけでよい。共通基盤の中の作りは下の「構成」以降。アプリは共通基盤の出力を `terraform_remote_state`（state は `tfstate/oci-platform/terraform.tfstate`）で読む。使い方の例は [sample-oci-vm-docker](https://github.com/alphajinsei/sample-oci-vm-docker)。
+
+### アプリが受け取るもの
+
+| もの | 内容 | どこから受け取るか |
+| --- | --- | --- |
+| ドメイン | `<名前>.alphajinsei.com`。HTTPS は Cloudflare と LB が持ち、アプリは HTTP で待つ | アプリの Terraform が DNS レコード（Cloudflare）と LB のリスナー・バックエンド・セットを足す（出力 `lb`） |
+| ポート | 下の台帳から1つ（8000〜8099）。LB の NSG はまとめて開けてある | 台帳に1行足す |
+| 置き場 | app VM の `/opt/apps/<名前>/`（持ち主は ubuntu）。Docker と compose が入っている | `ssh oci-app`（Bastion 経由） |
+| DB | MySQL HeatWave にスキーマ1つと専用のユーザー。作るのは初回だけ、ops から | 出力 `mysql`（`host` は `mysql.db.platform.oraclevcn.com`）、管理者のパスワードは出力 `mysql_admin_secret_name` |
+| 秘密の値 | 共通基盤の Vault に置く。VM は `platform-secret <名前>` で取り出す（VM 自身の権限で読むので鍵は要らない） | 出力 `vault_id`、`vault_key_id` |
+| メールの送信 | mail VM の 25番に、ログインなしで送る（app のサブネットを信頼している）。差出人は `noreply@alphajinsei.com` だけで、表示名でアプリを区別する。STARTTLS の証明書は `tls_name` で確かめる | 出力 `smtp`（`host`、`port`、`tls_name`、`from`） |
+| 監視 | LB のヘルスチェックと、その異常のメール通知。アプリ側で足すものはない | アプリは `/health` を返す |
+| ログ | コンテナの標準出力（`docker compose logs`）。LB のアクセスログは OCI Logging | なし |
+
+ファイル置き場（Object Storage のバケット）は、まだ用意していない。要るアプリが出てきたら、共通基盤にバケットとポリシーを足す。
+
+### アプリが守ること
+
+- **ステートレスに作る。** 状態は DB に置く。コンテナはデプロイのたびに作り直される（Docker ホストを2台に戻しても、そのまま動くように）。
+- **arm64 で動くイメージにする。** app VM は A1（Arm）で、イメージはその上でビルドする。
+- **`/health` を返す。** DB を見ないこと（DB が落ちたときに、LB がアプリごと切り離してしまう）。
+- **定時処理はアプリの中に持たない。** ops の cron から起動する（2台に戻したとき、二重に実行されないように）。
+- **メールの宛先を、Web から受け取ったまま使わない。** 誰でも好きな相手に送らせられる口になる。送れる数（Email Delivery の無料枠）は全アプリで共有。
+- **LB の変更は1つずつ。** OCI の LB は同時に1つの変更しか受け付けない。共通基盤や別のアプリの apply と同時に流さない。
 
 ### ポートの台帳
 
@@ -69,3 +96,45 @@ cd ../ansible && ansible-playbook site.yml             # VM の中
 - `~/.ssh/config` の先頭に `Include ~/claude-sandbox/oci-platform/ssh_config` を書いておく。
 
 - NAT Gateway が課金されていたら、`terraform.tfvars` に `use_nat_gateway = false` を足して apply する（app と ops が公開サブネットになり、Internet GW から外に出る。サブネットは作り直しになる）。
+
+## 何をどの道具で管理するか
+
+| 道具 | 管理するもの | 書く場所 |
+| --- | --- | --- |
+| Terraform（共通基盤） | VCN、NSG、VM、Bastion、LB と既定のリスナー、HeatWave、Vault、Email Delivery、監視、共通基盤の DNS レコード | `oci-platform/terraform/` |
+| Ansible | VM の中（OS の設定、Docker、iptables、oci CLI、メールのソフト一式） | `oci-platform/ansible/` |
+| Terraform（アプリ） | そのアプリの LB のリスナー・バックエンド・セット、Vault のシークレット、DNS レコード | `<name>/infra/terraform/` |
+| `npm run deploy`（rsync + `docker compose`） | app VM の上のソース、`.env`、イメージ、コンテナ、マイグレーションの適用 | `<name>/scripts/`、`compose.yaml` |
+| `npm run db:init` | スキーマと専用の DB ユーザー（初回だけ、ops から） | `<name>/scripts/` |
+| Drizzle | テーブル定義（唯一の正）とマイグレーションの生成 | `<name>/src/db/schema.ts`、`migrations/` |
+
+- 手で持つもの：Cloudflare の暗号化モード（Full (strict)）、Always Use HTTPS、Origin 証明書の発行。state のバケット `tfstate`。ポートの台帳（この README）。
+- アプリの Terraform は、共通基盤の出力を `terraform_remote_state` で読むだけで、共通基盤のリソースを書き換えない。
+
+## 日々の運用
+
+| やりたいこと | どうするか |
+| --- | --- |
+| アプリを本番に出す | アプリのフォルダで `npm run deploy` |
+| アプリのログを見る | `ssh oci-app 'cd /opt/apps/<name> && docker compose logs -f app'` |
+| LB のログを見る | OCI Logging のロググループ `platform`（`lb-access`、`lb-error`） |
+| 本番の DB を覗く | `ssh oci-ops` から `mysql`（接続先は出力 `mysql`、パスワードは `platform-secret`） |
+| アプリを前のイメージに戻す | app VM で `docker tag <name>:previous <name>:latest && docker compose up -d`（マイグレーションは戻らない） |
+| OS を更新して再起動する | `cd ansible && ansible-playbook upgrade.yml`（月に1回など） |
+| 共通基盤を変える | `cd terraform && ./tf.sh apply`、VM の中は `cd ansible && ansible-playbook site.yml` |
+| 手で変えた設定との差を見る | `./tf.sh plan -refresh-only` |
+| メールのバックアップを見る | `oci os object list --bucket-name mail-backup`（毎週日曜に1つ増え、14日で消える） |
+| アプリをやめる | アプリの `./tf.sh destroy`、app VM の `/opt/apps/<name>` で `docker compose down` してフォルダを消す、DB のスキーマとユーザーを消す、台帳の行を消す |
+
+## 困ったとき
+
+| 症状 | 原因と対処 |
+| --- | --- |
+| apply が LB の「別の変更の途中」で失敗する | OCI の LB は同時に1つの変更しか受け付けない。共通基盤や別のアプリの apply と同時に流さない。少し待って流し直す |
+| `ssh oci-app` がしばらく返ってこない | Bastion のセッションを作っている（1分ほど）。セッションは最長3時間で、切れたら `bin/bastion-proxy` が作り直す |
+| デプロイのスクリプトが、エラーなしで途中で終わる | `ssh host bash -s < script.sh` で流し込むと、途中の `docker compose run` などが標準入力（スクリプトの残り）を読んでしまう。ファイルで送って実行するか、`-T` や `< /dev/null` を付ける |
+| HeatWave が FAILED になり、`AuthorizationFailed` だけが出る | DB システム自身の権限（リソース・プリンシパル）で VNIC を作るポリシーがない（`database.tf`）。原因は Audit のログで、authType が resource の失敗を探す |
+| Email Delivery の Return-Path が、作るときに失敗する | DKIM が Active になる前は作れない。DKIM の DNS レコードを OCI が確かめて Active になってから、もう一度 apply する |
+| メールソフトから送ると `503 5.5.1 Error: authentication not enabled` | ポートが 25番になっている。465（SSL/TLS）か 587（STARTTLS）にする |
+| アプリからのメールが `Relay access denied` になる | 送信元が `mynetworks` に入っていない。`mail.alphajinsei.com`（公開 IP）でつなぐと NAT の IP から来たことになる。出力 `smtp` の `host`（VCN の中の名前）でつなぐ |
+| アプリからのメールが証明書のエラーになる | 証明書は `mail.alphajinsei.com` 用。nodemailer なら `tls.servername` に出力 `smtp` の `tls_name` を渡す |

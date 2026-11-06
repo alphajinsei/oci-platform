@@ -127,3 +127,62 @@ output "mail_relay" {
     password_name = oci_vault_secret.mail_relay_password.secret_name
   }
 }
+
+# ---- バックアップ：/srv/mail を Object Storage へ（mail VM の systemd のタイマーが週に1回 tar.gz を置く） ----
+# 無料枠（Object Storage は合計 20GB）を食わないよう、残すのは2世代（14日で消す）
+
+data "oci_objectstorage_namespace" "this" {
+  compartment_id = var.compartment_id
+}
+
+resource "oci_objectstorage_bucket" "mail_backup" {
+  compartment_id = var.compartment_id
+  namespace      = data.oci_objectstorage_namespace.this.namespace
+  name           = "mail-backup"
+  access_type    = "NoPublicAccess"
+}
+
+# 14日たったものは Object Storage が消す（週1回なので、残るのは直近の2つ。入れ替わりの前後に一時的に3つ）。そのために、Object Storage のサービス自身にこのコンパートメントのオブジェクトを消す権限が要る
+resource "oci_identity_policy" "objectstorage_lifecycle" {
+  compartment_id = var.compartment_id
+  name           = "platform-objectstorage-lifecycle"
+  description    = "Let Object Storage delete expired objects (lifecycle policies)"
+  statements = [
+    "Allow service objectstorage-${var.region} to manage object-family in compartment id ${var.compartment_id}",
+  ]
+}
+
+resource "oci_objectstorage_object_lifecycle_policy" "mail_backup" {
+  depends_on = [oci_identity_policy.objectstorage_lifecycle]
+
+  namespace = data.oci_objectstorage_namespace.this.namespace
+  bucket    = oci_objectstorage_bucket.mail_backup.name
+
+  rules {
+    name        = "delete-after-14-days"
+    action      = "DELETE"
+    target      = "objects"
+    is_enabled  = true
+    time_amount = 14
+    time_unit   = "DAYS"
+  }
+}
+
+# mail VM だけのグループ（platform-instances は全 VM）。バックアップを書けるのは mail VM だけにする
+resource "oci_identity_dynamic_group" "mail" {
+  compartment_id = var.tenancy_id
+  name           = "platform-mail"
+  description    = "The mail VM of oci-platform"
+  matching_rule  = "ALL {instance.id = '${oci_core_instance.this["mail"].id}'}"
+}
+
+# 置く（CREATE）・一覧（INSPECT）・取り出す（READ）だけ。消す・上書きはできないので、
+# mail VM が乗っ取られても、過去のバックアップは消されない（消すのはライフサイクルだけ）
+resource "oci_identity_policy" "mail_backup" {
+  compartment_id = var.compartment_id
+  name           = "platform-mail-backup"
+  description    = "The mail VM may add and read objects in the mail-backup bucket, but not delete or overwrite them"
+  statements = [
+    "Allow dynamic-group ${oci_identity_dynamic_group.mail.name} to manage objects in compartment id ${var.compartment_id} where all {target.bucket.name = '${oci_objectstorage_bucket.mail_backup.name}', any {request.permission = 'OBJECT_CREATE', request.permission = 'OBJECT_INSPECT', request.permission = 'OBJECT_READ'}}",
+  ]
+}

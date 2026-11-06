@@ -55,6 +55,14 @@ smtp_sasl_tls_security_options = noanonymous
 smtp_tls_security_level = secure
 smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
 
+# ---- Rspamd（milter）：受け取りの途中で Rspamd に見せ、点数で拒否・ヘッダーの追加を決めてもらう ----
+# 25番も 465・587番も通す（465・587番は master.cf の ORIGINATING で「送るメール」として扱われ、迷惑メールの判定はされない）。
+# Rspamd が止まっていたら、判定なしで受け取る（accept）。止まっている間にメールを失うよりはよい
+smtpd_milters = inet:localhost:11332
+non_smtpd_milters = $smtpd_milters
+milter_default_action = accept
+milter_protocol = 6
+
 compatibility_level = 3.6
 alias_maps = hash:/etc/aliases
 alias_database = hash:/etc/aliases

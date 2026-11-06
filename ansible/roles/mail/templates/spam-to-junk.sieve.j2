@@ -1,0 +1,7 @@
+# Managed by Ansible (oci-platform/ansible/roles/mail). Edit the template, not this file.
+# Rspamd が迷惑メールと判定したもの（add_header の6点以上）を Junk に入れる。全員の受信の前に流れる（sieve_before）
+require ["fileinto", "mailbox"];
+if anyof (header :is "X-Spam" "Yes", header :matches "X-Spam-Status" "Yes*") {
+  fileinto :create "Junk";
+  stop;
+}

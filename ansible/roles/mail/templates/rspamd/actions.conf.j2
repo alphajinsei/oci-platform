@@ -1,0 +1,6 @@
+# Managed by Ansible (oci-platform/ansible/roles/mail). Edit the template, not this file.
+# 点数で決まる扱い。15点以上は受け取りを拒否、6点以上は X-Spam ヘッダーを付ける（Dovecot の Sieve が Junk に入れる）。
+# greylist（初めての相手を一度断り、再送を待つ）は使わない。届くのが数分遅れ、試すときに紛らわしいため
+reject = 15;
+add_header = 6;
+greylist = null;

@@ -17,3 +17,6 @@ mail_aliases:
 
 # 外への配送の中継先（Email Delivery）。ホスト名と SMTP のユーザー名は Terraform の出力から、パスワードは Vault から
 mail_relay: "{{ lookup('ansible.builtin.pipe', 'terraform -chdir=' ~ playbook_dir ~ '/../terraform output -json mail_relay') | from_json }}"
+
+# /srv/mail のバックアップの置き場（terraform/mail.tf の oci_objectstorage_bucket.mail_backup と同じ名前）
+mail_backup_bucket: mail-backup

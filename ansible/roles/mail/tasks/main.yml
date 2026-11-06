@@ -53,6 +53,29 @@
     dest: /etc/letsencrypt/renewal-hooks/deploy/reload-mail.sh
     mode: "0755"
 
+# ---- Rspamd：受け取ったメールの点数付け（迷惑メールの判定、SPF・DKIM・DMARC の確認） ----
+# Postfix が milter（受け取りの途中で別のプログラムに見せる仕組み）として呼ぶ（localhost:11332）。
+# 設定はパッケージのものを残し、変えるところだけ local.d/ に書く。画面（localhost:11334）は SSH のトンネルで見る
+- name: Install rspamd and redis
+  ansible.builtin.apt:
+    name: [rspamd, redis-server]
+    state: present
+
+- name: Write rspamd settings
+  ansible.builtin.template:
+    src: "rspamd/{{ item }}.j2"
+    dest: "/etc/rspamd/local.d/{{ item }}"
+    mode: "0644"
+  loop: [actions.conf, redis.conf, milter_headers.conf]
+  notify: Restart rspamd
+
+- name: Start rspamd and redis
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop: [redis-server, rspamd]
+
 # ---- Postfix ----
 # インストールのときの質問（どんな種類のメールサーバーか）に先に答えておく。main.cf は下で丸ごと書き換える
 - name: Preseed postfix
@@ -121,6 +144,26 @@
     name: [dovecot-core, dovecot-imapd, dovecot-lmtpd]
     state: present
 
+# Sieve（受け取ったときの振り分け）。Rspamd が迷惑メールと判定したものを Junk に入れる
+- name: Install dovecot sieve
+  ansible.builtin.apt:
+    name: [dovecot-sieve]
+    state: present
+
+- name: Create /etc/dovecot/sieve
+  ansible.builtin.file:
+    path: /etc/dovecot/sieve
+    state: directory
+    mode: "0755"
+
+# Dovecot（vmail で動く）は /etc に書けないので、先に root で翻訳しておく（.svbin）
+- name: Write spam-to-junk sieve
+  ansible.builtin.template:
+    src: spam-to-junk.sieve.j2
+    dest: /etc/dovecot/sieve/spam-to-junk.sieve
+    mode: "0644"
+  notify: Compile sieve
+
 # パッケージの設定（conf.d/ を読み込む形）は使わず、1つのファイルに全部書く。Linux のユーザーでのログイン（PAM）も切れる
 - name: Write dovecot.conf
   ansible.builtin.template:
@@ -157,3 +200,44 @@
     name: dovecot
     state: started
     enabled: true
+
+# ---- fail2ban：ログインの失敗が続く IP を締め出す（465・587・993番） ----
+- name: Install fail2ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+
+- name: Write jail.local
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Start fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+# ---- バックアップ：/srv/mail を週に1回 Object Storage へ（2世代） ----
+- name: Install mail-backup
+  ansible.builtin.template:
+    src: mail-backup.sh.j2
+    dest: /usr/local/sbin/mail-backup
+    mode: "0755"
+
+- name: Install mail-backup service and timer
+  ansible.builtin.template:
+    src: "mail-backup.{{ item }}.j2"
+    dest: "/etc/systemd/system/mail-backup.{{ item }}"
+    mode: "0644"
+  loop: [service, timer]
+  register: mail_backup_units
+
+- name: Enable mail-backup timer
+  ansible.builtin.systemd_service:
+    name: mail-backup.timer
+    state: started
+    enabled: true
+    daemon_reload: "{{ mail_backup_units.changed }}"

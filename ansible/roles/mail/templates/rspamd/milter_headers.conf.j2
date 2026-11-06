@@ -1,0 +1,6 @@
+# Managed by Ansible (oci-platform/ansible/roles/mail). Edit the template, not this file.
+# 受け取ったメールに付けるヘッダー。メールソフトの「ソースを表示」で判定の中身が読める
+#   X-Spamd-Result：点数と、当たった規則（SPF・DKIM・DMARC の結果も含む）の一覧
+#   X-Spam-Status：迷惑メールか（Yes / No）と点数
+#   Authentication-Results：SPF・DKIM・DMARC の結果（Gmail の「メッセージのソース」と同じ形）
+use = ["x-spamd-result", "x-spam-status", "authentication-results"];

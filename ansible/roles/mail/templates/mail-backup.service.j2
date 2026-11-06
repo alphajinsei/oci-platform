@@ -1,0 +1,9 @@
+# Managed by Ansible (oci-platform/ansible/roles/mail). Edit the template, not this file.
+[Unit]
+Description=Back up /srv/mail to Object Storage ({{ mail_backup_bucket }})
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/mail-backup

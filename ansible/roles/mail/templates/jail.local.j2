@@ -1,0 +1,26 @@
+# Managed by Ansible (oci-platform/ansible/roles/mail). Edit the template, not this file.
+# ログインの失敗が続く IP を、しばらく締め出す。状態は `fail2ban-client status <jail>`
+[DEFAULT]
+# VCN の中（ops からの試験、app からの送信）と自分自身は締め出さない
+ignoreip = 127.0.0.1/8 10.0.0.0/16
+# 10分に5回失敗したら、1時間すべてのポートを閉じる
+findtime = 10m
+maxretry = 5
+bantime = 1h
+# 締め出しは iptables に足す。common の Reload iptables（フラッシュしてから読み直す）のあとは fail2ban を再起動して足し直す
+banaction = iptables-allports
+backend = auto
+
+# SSH は Bastion からしか届かない（NSG）。Ubuntu の既定で有効なので切る
+[sshd]
+enabled = false
+
+# 465・587番のログインの失敗（Postfix の SASL）
+[postfix-sasl]
+enabled = true
+logpath = /var/log/mail.log
+
+# IMAP（993番）のログインの失敗
+[dovecot]
+enabled = true
+logpath = /var/log/mail.log

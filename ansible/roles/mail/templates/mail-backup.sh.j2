@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Managed by Ansible (oci-platform/ansible/roles/mail). Edit the template, not this file.
+# /srv/mail を tar.gz にして Object Storage（{{ mail_backup_bucket }}）に置く。systemd の mail-backup.timer が週に1回動かす。
+# mail VM の権限（インスタンス・プリンシパル）は置く・読むだけで、消す・上書きはできない。14日たったものは Object Storage が消す（2世代）
+set -euo pipefail
+
+name="srv-mail-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# 動いている最中に読むので、読んでいる間に変わったファイルがあると tar は 1 で終わる（警告）。それは成功として扱う
+tar -C /srv -czf "$tmp/$name" mail || [ $? -eq 1 ]
+
+/home/ubuntu/.local/bin/oci os object put --auth instance_principal \
+  --bucket-name {{ mail_backup_bucket }} --name "$name" --file "$tmp/$name" --no-overwrite
+echo "uploaded $name ($(du -h "$tmp/$name" | cut -f1))"

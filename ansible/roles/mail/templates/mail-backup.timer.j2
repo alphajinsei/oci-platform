@@ -1,0 +1,12 @@
+# Managed by Ansible (oci-platform/ansible/roles/mail). Edit the template, not this file.
+# 毎週日曜の 3:30（日本時間）ごろ。止まっていた間の分は、起動したときに1回動く（Persistent）
+[Unit]
+Description=Weekly backup of /srv/mail
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00 Asia/Tokyo
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

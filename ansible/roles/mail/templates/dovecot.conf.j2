@@ -80,4 +80,11 @@ service auth {
 
 protocol lmtp {
   postmaster_address = postmaster@{{ mail_domain }}
+  # 保存の前に Sieve（振り分け）を通す
+  mail_plugins = $mail_plugins sieve
+}
+
+# 全員の受信の前に流す振り分け。Rspamd が迷惑メールと判定したものを Junk へ
+plugin {
+  sieve_before = /etc/dovecot/sieve/spam-to-junk.sieve
 }

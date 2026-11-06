@@ -22,3 +22,17 @@
   ansible.builtin.service:
     name: postfix
     state: restarted
+
+- name: Restart rspamd
+  ansible.builtin.service:
+    name: rspamd
+    state: restarted
+
+- name: Compile sieve
+  ansible.builtin.command: sievec /etc/dovecot/sieve/spam-to-junk.sieve
+  changed_when: true
+
+- name: Restart fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: restarted

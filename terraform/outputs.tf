@@ -66,3 +66,16 @@ output "lb" {
 }
 
 # cloudflare_zone_id は cloudflare.tf
+
+# アプリからのメールの送り先（mail VM の 25番。VCN の中なのでログインなし）。
+# host は VCN の中の名前（mail.dmz.platform.oraclevcn.com。private IP が返る）。mail.<domain> は公開 IP を指し、VCN の外を回るので使わない。
+# 証明書は mail.<domain> 用なので、STARTTLS で確かめる名前を tls_name で渡す
+output "smtp" {
+  value = {
+    host     = "${oci_core_instance.this["mail"].create_vnic_details[0].hostname_label}.${oci_core_subnet.this["dmz"].subnet_domain_name}"
+    port     = 25
+    tls_name = "mail.${var.domain}"
+    from     = oci_email_sender.app.email_address
+  }
+}
+

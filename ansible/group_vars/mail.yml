@@ -15,6 +15,10 @@ mail_aliases:
   abuse: alphajinsei
   dmarc: alphajinsei
 
+# ログインなしで外へ送ってよいネットワーク（Postfix の mynetworks）。app VM のサブネット（terraform/network.tf の private-app）。
+# アプリのコンテナは 25番に送る。差出人は Email Delivery の承認済みの差出人（noreply@ など）でしか外へ出ない
+mail_trusted_networks: [10.0.10.0/24]
+
 # 外への配送の中継先（Email Delivery）。ホスト名と SMTP のユーザー名は Terraform の出力から、パスワードは Vault から
 mail_relay: "{{ lookup('ansible.builtin.pipe', 'terraform -chdir=' ~ playbook_dir ~ '/../terraform output -json mail_relay') | from_json }}"
 

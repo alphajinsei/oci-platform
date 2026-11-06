@@ -69,6 +69,13 @@ resource "oci_email_sender" "user" {
   email_address  = "${each.key}@${var.domain}"
 }
 
+# アプリからの送信の差出人。全アプリ共通で、表示名でアプリを区別する（"サンプル <noreply@alphajinsei.com>"）。
+# 受け取るメールボックスはないので、返信は届かない（mail VM が 550 で断る）
+resource "oci_email_sender" "app" {
+  compartment_id = var.compartment_id
+  email_address  = "noreply@${var.domain}"
+}
+
 # 中継のための IAM のユーザー。人は使わない。できるのは、承認済みの差出人で送ることだけ
 resource "oci_identity_user" "mail_relay" {
   compartment_id = var.tenancy_id

@@ -20,8 +20,9 @@ virtual_alias_maps = hash:/etc/postfix/virtual
 virtual_transport = lmtp:unix:private/dovecot-lmtp
 
 # ---- 中継の制限（オープンリレーにしない） ----
-# 信頼するのは自分自身だけ。それ以外から、よそのドメイン宛てを頼まれたら拒否する（Relay access denied）
-mynetworks = 127.0.0.0/8
+# 信頼するのは自分自身と app VM（アプリのコンテナが 25番にログインなしで送る。自分のシステムの中は信じる）。
+# それ以外から、よそのドメイン宛てを頼まれたら拒否する（Relay access denied）
+mynetworks = 127.0.0.0/8 {{ mail_trusted_networks | join(' ') }}
 smtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination
 
 # ---- 受け付けの作法 ----

@@ -43,6 +43,7 @@ app VM の上で、アプリのコンテナが使うポート（VM の側）。L
 | 8000 | 共通基盤の既定のページ（`ansible/roles/default_site`） |
 | 8001 | [sample-oci-vm-docker](https://github.com/alphajinsei/sample-oci-vm-docker) |
 | 8002 | [auth](https://github.com/alphajinsei/auth)（認証基盤） |
+| 8003 | [sample-auth-client](https://github.com/alphajinsei/sample-auth-client)（auth でログインする側のひな形） |
 
 ## 構成
 
